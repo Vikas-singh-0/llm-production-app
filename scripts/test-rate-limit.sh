@@ -61,7 +61,7 @@ for i in {1..105}; do
   HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null \
     -H "x-org-id: $ORG_ID" \
     -H "x-user-id: $USER_ID" \
-    "$BASE_URL/health")
+    "$BASE_URL")
   
   if [ "$HTTP_CODE" = "200" ]; then
     ((SUCCESS++))
@@ -96,7 +96,7 @@ echo "---"
 RESPONSE=$(curl -s -i \
   -H "x-org-id: $ORG_ID" \
   -H "x-user-id: $USER_ID" \
-  "$BASE_URL/health" | grep -i "x-ratelimit")
+  "$BASE_URL" | grep -i "x-ratelimit")
 
 if [ -n "$RESPONSE" ]; then
   echo "$RESPONSE"
@@ -116,7 +116,7 @@ echo "---"
 RESPONSE=$(curl -s -i \
   -H "x-org-id: $ORG_ID" \
   -H "x-user-id: $USER_ID" \
-  "$BASE_URL/health")
+  "$BASE_URL")
 
 HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP" | awk '{print $2}')
 echo "HTTP Status: $HTTP_CODE"

@@ -174,8 +174,8 @@ export class RateLimiter {
 // Default rate limiter instance
 // 100 requests burst, refills at 10/second (600/min)
 export const defaultRateLimiter = new RateLimiter({
-  maxTokens: 100,
-  refillRate: 10,      // 10 tokens per second
+  maxTokens: 20,
+  refillRate: 1,      // 10 tokens per second
   windowSeconds: 60,   // 1 minute window
 });
 

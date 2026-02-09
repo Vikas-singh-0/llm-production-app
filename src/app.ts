@@ -1,6 +1,7 @@
-import express, { Application } from 'express';
+import express, { Application, NextFunction } from 'express';
 import healthRoute from './routes/health.route';
 import metricsRoute from './routes/metrics.route';
+import rootRoute from './routes/root.route';
 import requestIdMiddleware from './middleware/requestid.middleware';
 import metricsMiddleware from './middleware/metrics.middleware';
 import fakeAuthMiddleware from './middleware/fakeAuth.middleware';
@@ -26,6 +27,7 @@ export function createApp(): Application {
   app.use(rateLimitMiddleware);
 
   // Routes
+  app.use(rootRoute);
   app.use(healthRoute);
   app.use(metricsRoute);
 
