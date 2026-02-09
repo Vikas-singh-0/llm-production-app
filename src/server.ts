@@ -2,13 +2,24 @@ import { Application } from 'express';
 import { Server } from 'http';
 import logger from './infra/logger';
 import config from './config/env';
+import db from './infra/database';
+// import redis from './infra/redis';
 
 export class AppServer {
   private server: Server | null = null;
 
   constructor(private app: Application) {}
 
-  start(): void {
+  async start(): Promise<void> {
+  const isDbHealthy = await db.healthCheck();
+
+      if (!isDbHealthy) {
+    logger.error('Database is not reachable. Server not started.');
+    process.exit(1);
+  }
+    // Connect to Redis before starting server
+    // await redis.connect();
+
     this.server = this.app.listen(config.port, () => {
       logger.info(`Server running`, {
         port: config.port,
@@ -20,12 +31,19 @@ export class AppServer {
   }
 
   private setupGracefulShutdown(): void {
-    const shutdown = (signal: string) => {
+    const shutdown = async (signal: string) => {
       logger.info(`${signal} received, starting graceful shutdown`);
 
       if (this.server) {
-        this.server.close(() => {
+        this.server.close(async () => {
           logger.info('HTTP server closed');
+          
+          // Close database and Redis connections
+          await Promise.all([
+            db.close(),
+            // redis.disconnect(),
+          ]);
+          
           process.exit(0);
         });
 

@@ -2,7 +2,7 @@
 
 Production-grade LLM application with multi-tenancy, built step-by-step.
 
-## Current Status: STEP 0.2 ✅
+## Current Status: STEP 1.2 ✅
 
 **Working Features:**
 - ✅ Node.js + TypeScript server
@@ -10,38 +10,58 @@ Production-grade LLM application with multi-tenancy, built step-by-step.
 - ✅ Environment configuration
 - ✅ Structured JSON logging with correlation IDs
 - ✅ Graceful shutdown
-- ✅ **NEW:** Prometheus metrics endpoint (`/metrics`)
-- ✅ **NEW:** Request ID middleware (correlation tracking)
-- ✅ **NEW:** Request duration histograms
-- ✅ **NEW:** In-progress request tracking
+- ✅ Prometheus metrics endpoint (`/metrics`)
+- ✅ Request ID middleware (correlation tracking)
+- ✅ PostgreSQL with connection pooling
+- ✅ Multi-tenant data model (orgs + users)
+- ✅ Database migrations with seed data
+- ✅ Fake auth middleware (org context on every request)
+- ✅ **NEW:** Redis integration
+- ✅ **NEW:** Per-org rate limiting (token bucket)
+- ✅ **NEW:** Rate limit headers on responses
+- ✅ **NEW:** Abuse prevention with hard caps
 
 ## Setup
 
-1. Install dependencies:
+1. **Start PostgreSQL:**
+```bash
+docker-compose up -d
+```
+
+2. **Install dependencies:**
 ```bash
 npm install
 ```
 
-2. Copy environment file:
+3. **Run database migrations:**
+```bash
+npm run db:migrate
+```
+
+4. **Copy environment file:**
 ```bash
 cp .env.example .env
 ```
 
-3. Run in development:
+5. **Run in development:**
 ```bash
 npm run dev
 ```
 
-4. Test the endpoints:
+6. **Test the endpoints:**
 ```bash
-# Health check with request ID
+# Health check (no auth)
 curl http://localhost:3000/health
 
-# Metrics endpoint
-curl http://localhost:3000/metrics
+# Health check with org context
+# First, get user IDs from DB:
+docker exec -it llm-app-postgres psql -U postgres -d llm_app -c "SELECT id, email FROM users;"
 
-# Or run the full test suite
-./test-observability.sh
+# Then test with headers
+curl -H "x-org-id: <org-id>" -H "x-user-id: <user-id>" http://localhost:3000/health
+
+# Metrics
+curl http://localhost:3000/metrics
 ```
 
 ## Endpoints

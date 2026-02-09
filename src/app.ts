@@ -1,8 +1,10 @@
 import express, { Application } from 'express';
 import healthRoute from './routes/health.route';
-import metricsRoute from './routes/metrics.route'
+import metricsRoute from './routes/metrics.route';
 import requestIdMiddleware from './middleware/requestid.middleware';
 import metricsMiddleware from './middleware/metrics.middleware';
+import fakeAuthMiddleware from './middleware/fakeAuth.middleware';
+// import rateLimitMiddleware from './middleware/rateLimit.middleware';
 
 export function createApp(): Application {
   const app = express();
@@ -16,6 +18,12 @@ export function createApp(): Application {
 
   // Metrics and logging middleware
   app.use(metricsMiddleware);
+
+  // Fake auth middleware (sets req.context with org_id, user_id, role)
+  app.use(fakeAuthMiddleware);
+
+  // Rate limiting (per-org token bucket)
+  // app.use(rateLimitMiddleware);
 
   // Routes
   app.use(healthRoute);
