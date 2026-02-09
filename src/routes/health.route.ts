@@ -1,18 +1,18 @@
 import { Request, Response, Router } from 'express';
 import config from '../config/env';
 import db from '../infra/database';
-// import redis from '../infra/redis';
+import redis from '../infra/redis';
 
 const router = Router();
 
 router.get('/health', async (req: Request, res: Response) => {
   // Check database and Redis health
-  const [dbHealthy] = await Promise.all([
+  const [dbHealthy, redisHealthy] = await Promise.all([
     db.healthCheck(),
-    // redis.healthCheck(),
+    redis.healthCheck(),
   ]);
 
-  const allHealthy = dbHealthy;
+  const allHealthy = dbHealthy && redisHealthy;
 
   const response: any = {
     status: allHealthy ? 'ok' : 'degraded',
@@ -21,7 +21,7 @@ router.get('/health', async (req: Request, res: Response) => {
     requestId: req.requestId,
     services: {
       database: dbHealthy ? 'connected' : 'disconnected',
-      // redis: redisHealthy ? 'connected' : 'disconnected',
+      redis: redisHealthy ? 'connected' : 'disconnected',
     },
   };
 

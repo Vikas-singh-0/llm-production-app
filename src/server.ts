@@ -1,9 +1,9 @@
-import { Application } from 'express';
-import { Server } from 'http';
-import logger from './infra/logger';
-import config from './config/env';
-import db from './infra/database';
-// import redis from './infra/redis';
+import { Application } from "express";
+import { Server } from "http";
+import logger from "./infra/logger";
+import config from "./config/env";
+import db from "./infra/database";
+import redis from "./infra/redis";
 
 export class AppServer {
   private server: Server | null = null;
@@ -11,14 +11,14 @@ export class AppServer {
   constructor(private app: Application) {}
 
   async start(): Promise<void> {
-  const isDbHealthy = await db.healthCheck();
+    const isDbHealthy = await db.healthCheck();
 
-      if (!isDbHealthy) {
-    logger.error('Database is not reachable. Server not started.');
-    process.exit(1);
-  }
+    if (!isDbHealthy) {
+      logger.error("Database is not reachable. Server not started.");
+      process.exit(1);
+    }
     // Connect to Redis before starting server
-    // await redis.connect();
+    await redis.connect();
 
     this.server = this.app.listen(config.port, () => {
       logger.info(`Server running`, {
@@ -36,27 +36,24 @@ export class AppServer {
 
       if (this.server) {
         this.server.close(async () => {
-          logger.info('HTTP server closed');
-          
+          logger.info("HTTP server closed");
+
           // Close database and Redis connections
-          await Promise.all([
-            db.close(),
-            // redis.disconnect(),
-          ]);
-          
+          await Promise.all([db.close(), redis.disconnect()]);
+
           process.exit(0);
         });
 
         // Force shutdown after 10 seconds
         setTimeout(() => {
-          logger.error('Forced shutdown after timeout');
+          logger.error("Forced shutdown after timeout");
           process.exit(1);
         }, 10000);
       }
     };
 
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
   }
 }
 

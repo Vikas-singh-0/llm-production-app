@@ -27,7 +27,7 @@ export const config: Config = {
     poolMax: parseInt(process.env.DB_POOL_MAX || '10', 10),
   },
   redis: {
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
+    url: process.env.REDIS_URL || 'redis://localhost:3001',
     password: process.env.REDIS_PASSWORD || undefined,
   },
 };

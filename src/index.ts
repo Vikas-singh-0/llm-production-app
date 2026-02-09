@@ -9,7 +9,7 @@ async function main() {
     const app = createApp();
     const server = new AppServer(app);
 
-    server.start();
+    await server.start();
   } catch (error) {
     logger.error('Failed to start application', { error });
     process.exit(1);

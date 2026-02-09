@@ -4,7 +4,7 @@ import metricsRoute from './routes/metrics.route';
 import requestIdMiddleware from './middleware/requestid.middleware';
 import metricsMiddleware from './middleware/metrics.middleware';
 import fakeAuthMiddleware from './middleware/fakeAuth.middleware';
-// import rateLimitMiddleware from './middleware/rateLimit.middleware';
+import rateLimitMiddleware from './middleware/rateLimit.middleware';
 
 export function createApp(): Application {
   const app = express();
@@ -23,7 +23,7 @@ export function createApp(): Application {
   app.use(fakeAuthMiddleware);
 
   // Rate limiting (per-org token bucket)
-  // app.use(rateLimitMiddleware);
+  app.use(rateLimitMiddleware);
 
   // Routes
   app.use(healthRoute);
