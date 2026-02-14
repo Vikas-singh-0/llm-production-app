@@ -7,20 +7,33 @@ async function runMigrations() {
   try {
     logger.info('Starting database migration...');
 
-    const migrationPath = join(__dirname, 'migrations', '001_initial_schema.sql');
-    const migrationSQL = readFileSync(migrationPath, 'utf-8');
+    // Run migrations in order
+    const migrations = [
+      '001_initial_schema.sql',
+      '002_chat_tables.sql',
+    ];
 
-    await db.query(migrationSQL);
+    for (const migrationFile of migrations) {
+      logger.info(`Running migration: ${migrationFile}`);
+      const migrationPath = join(__dirname, 'migrations', migrationFile);
+      const migrationSQL = readFileSync(migrationPath, 'utf-8');
+      await db.query(migrationSQL);
+      logger.info(`Completed migration: ${migrationFile}`);
+    }
 
-    logger.info('Migration completed successfully');
+    logger.info('All migrations completed successfully');
 
     // Verify data
     const orgsResult = await db.query('SELECT id, name, slug FROM orgs');
     const usersResult = await db.query('SELECT id, email, role, org_id FROM users');
+    const chatsResult = await db.query('SELECT COUNT(*) as count FROM chats');
+    const messagesResult = await db.query('SELECT COUNT(*) as count FROM messages');
 
-    logger.info('Database seeded', {
-      orgs: orgsResult.rows,
-      users: usersResult.rows,
+    logger.info('Database status', {
+      orgs: orgsResult.rows.length,
+      users: usersResult.rows.length,
+      chats: chatsResult.rows[0].count,
+      messages: messagesResult.rows[0].count,
     });
 
     await db.close();

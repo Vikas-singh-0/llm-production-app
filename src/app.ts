@@ -1,11 +1,12 @@
-import express, { Application, NextFunction } from 'express';
-import healthRoute from './routes/health.route';
-import metricsRoute from './routes/metrics.route';
 import rootRoute from './routes/root.route';
-import requestIdMiddleware from './middleware/requestid.middleware';
-import metricsMiddleware from './middleware/metrics.middleware';
-import fakeAuthMiddleware from './middleware/fakeAuth.middleware';
-import rateLimitMiddleware from './middleware/rateLimit.middleware';
+import express, { Application } from "express";
+import healthRoute from "./routes/health.route";
+import metricsRoute from "./routes/metrics.route";
+import chatRoute from "./routes/chat.route";
+import requestIdMiddleware from "./middleware/requestid.middleware";
+import metricsMiddleware from "./middleware/metrics.middleware";
+import fakeAuthMiddleware from "./middleware/fakeAuth.middleware";
+import rateLimitMiddleware from "./middleware/rateLimit.middleware";
 
 export function createApp(): Application {
   const app = express();
@@ -30,6 +31,7 @@ export function createApp(): Application {
   app.use(rootRoute);
   app.use(healthRoute);
   app.use(metricsRoute);
+  app.use(chatRoute);
 
   return app;
 }

@@ -2,24 +2,21 @@
 
 Production-grade LLM application with multi-tenancy, built step-by-step.
 
-## Current Status: STEP 1.2 ✅
+## Current Status: STEP 2.2 ✅
 
 **Working Features:**
 - ✅ Node.js + TypeScript server
-- ✅ Express app with proper structure
-- ✅ Environment configuration
-- ✅ Structured JSON logging with correlation IDs
-- ✅ Graceful shutdown
-- ✅ Prometheus metrics endpoint (`/metrics`)
-- ✅ Request ID middleware (correlation tracking)
-- ✅ PostgreSQL with connection pooling
-- ✅ Multi-tenant data model (orgs + users)
-- ✅ Database migrations with seed data
-- ✅ Fake auth middleware (org context on every request)
-- ✅ **NEW:** Redis integration
-- ✅ **NEW:** Per-org rate limiting (token bucket)
-- ✅ **NEW:** Rate limit headers on responses
-- ✅ **NEW:** Abuse prevention with hard caps
+- ✅ Observability (metrics, logs, correlation IDs)
+- ✅ PostgreSQL multi-tenant data model
+- ✅ Redis with per-org rate limiting
+- ✅ Fake auth middleware (org context)
+- ✅ Chat API (POST /chat, GET /chat/:id, GET /chats)
+- ✅ Message persistence
+- ✅ **NEW:** POST /chat/stream - SSE streaming endpoint
+- ✅ **NEW:** Token-by-token delivery (simulated)
+- ✅ **NEW:** Client disconnect detection
+- ✅ **NEW:** Interactive HTML test page
+- ✅ **Note:** Still no LLM - infrastructure testing only!
 
 ## Setup
 
