@@ -2,21 +2,24 @@
 
 Production-grade LLM application with multi-tenancy, built step-by-step.
 
-## Current Status: STEP 2.2 ✅
+## Current Status: STEP 3.1 ✅ 🎉
+
+**REAL AI IS HERE!**
 
 **Working Features:**
-- ✅ Node.js + TypeScript server
-- ✅ Observability (metrics, logs, correlation IDs)
+- ✅ Production infrastructure (metrics, logs, auth, rate limiting)
 - ✅ PostgreSQL multi-tenant data model
-- ✅ Redis with per-org rate limiting
-- ✅ Fake auth middleware (org context)
-- ✅ Chat API (POST /chat, GET /chat/:id, GET /chats)
-- ✅ Message persistence
-- ✅ **NEW:** POST /chat/stream - SSE streaming endpoint
-- ✅ **NEW:** Token-by-token delivery (simulated)
-- ✅ **NEW:** Client disconnect detection
-- ✅ **NEW:** Interactive HTML test page
-- ✅ **Note:** Still no LLM - infrastructure testing only!
+- ✅ Redis with per-org token bucket rate limiting
+- ✅ Chat API with message persistence
+- ✅ SSE streaming infrastructure
+- ✅ **NEW:** Claude API integration (Sonnet 4)
+- ✅ **NEW:** Real LLM token streaming
+- ✅ **NEW:** Token counting and tracking
+- ✅ **NEW:** Budget enforcement (max_tokens)
+- ✅ **NEW:** Conversation context (last 20 messages)
+- ✅ **NEW:** Error handling for API failures
+
+**This is a fully functional AI chat application!** 🚀
 
 ## Setup
 

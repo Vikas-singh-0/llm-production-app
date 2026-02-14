@@ -2,6 +2,7 @@ import { Request, Response, Router } from 'express';
 import { ChatModel } from '../models/chat.modal';
 import { MessageModel } from '../models/message.modal';
 import { streamingService } from '../services/streaming.service';
+import { claudeService } from '../services/claude.service';
 import logger from '../infra/logger';
 
 const router = Router();
@@ -9,22 +10,8 @@ const router = Router();
 /**
  * POST /chat
  * 
- * Send a message and get a response.
- * For now, returns a canned response (no LLM).
- * 
- * Body:
- *   {
- *     "message": "Hello, how are you?",
- *     "chat_id": "optional-existing-chat-id"
- *   }
- * 
- * Response:
- *   {
- *     "chat_id": "uuid",
- *     "message_id": "uuid",
- *     "reply": "Chat system online. I received your message.",
- *     "created_at": "2024-02-04T10:30:00.000Z"
- *   }
+ * Send a message and get a response (non-streaming).
+ * Uses real Claude API.
  */
 router.post('/chat', async (req: Request, res: Response) => {
   try {
@@ -64,7 +51,6 @@ router.post('/chat', async (req: Request, res: Response) => {
     // Get or create chat
     let chat;
     if (chat_id) {
-      // Verify chat exists and belongs to this org
       chat = await ChatModel.findById(chat_id, req.context.orgId);
       if (!chat) {
         res.status(404).json({
@@ -74,11 +60,10 @@ router.post('/chat', async (req: Request, res: Response) => {
         return;
       }
     } else {
-      // Create new chat
       chat = await ChatModel.create({
         org_id: req.context.orgId,
         user_id: req.context.userId,
-        title: message.substring(0, 50), // First 50 chars as title
+        title: message.substring(0, 50),
       });
       logger.info('New chat created', {
         requestId: req.requestId,
@@ -91,16 +76,22 @@ router.post('/chat', async (req: Request, res: Response) => {
       chat_id: chat.id,
       role: 'user',
       content: message,
+      token_count: claudeService.estimateTokens(message),
     });
 
-    // Generate canned response (no LLM yet!)
-    const assistantReply = `Chat system online. I received your message: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`;
+    // Get recent chat history
+    const history = await MessageModel.findRecentByChatId(chat.id, 20);
+    const claudeMessages = claudeService.messagesToClaudeFormat(history);
+
+    // Call Claude API (non-streaming)
+    const { text: assistantReply, usage } = await claudeService.chat(claudeMessages);
 
     // Store assistant message
     const assistantMessage = await MessageModel.create({
       chat_id: chat.id,
       role: 'assistant',
       content: assistantReply,
+      token_count: usage.outputTokens,
     });
 
     logger.info('Chat response generated', {
@@ -108,6 +99,9 @@ router.post('/chat', async (req: Request, res: Response) => {
       chatId: chat.id,
       userMessageId: userMessage.id,
       assistantMessageId: assistantMessage.id,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      totalTokens: usage.totalTokens,
     });
 
     res.status(200).json({
@@ -115,12 +109,27 @@ router.post('/chat', async (req: Request, res: Response) => {
       message_id: assistantMessage.id,
       reply: assistantReply,
       created_at: assistantMessage.created_at,
+      usage: {
+        input_tokens: usage.inputTokens,
+        output_tokens: usage.outputTokens,
+        total_tokens: usage.totalTokens,
+      },
     });
   } catch (error) {
     logger.error('Chat endpoint error', {
       requestId: req.requestId,
       error,
     });
+
+    // Check for API errors
+    if (error instanceof Error && error.message.includes('API key')) {
+      res.status(500).json({
+        error: 'Configuration Error',
+        message: 'Claude API not configured. Please set ANTHROPIC_API_KEY.',
+      });
+      return;
+    }
+
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to process chat request',
@@ -132,19 +141,7 @@ router.post('/chat', async (req: Request, res: Response) => {
  * POST /chat/stream
  * 
  * Send a message and get a streaming response (SSE).
- * Simulates token-by-token streaming without LLM.
- * 
- * Body:
- *   {
- *     "message": "Hello, how are you?",
- *     "chat_id": "optional-existing-chat-id"
- *   }
- * 
- * Response: Server-Sent Events
- *   data: {"token": "Hello", "done": false}
- *   data: {"token": " ", "done": false}
- *   data: {"token": "world", "done": false}
- *   data: {"token": "", "done": true, "fullText": "Hello world"}
+ * Uses real Claude API with token streaming.
  */
 router.post('/chat/stream', async (req: Request, res: Response) => {
   try {
@@ -205,33 +202,71 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       chat_id: chat.id,
       role: 'user',
       content: message,
+      token_count: claudeService.estimateTokens(message),
     });
 
-    // Generate response text (simulated)
-    const responseText = `This is a simulated streaming response to your message. Each word will arrive separately, simulating how a real LLM would stream tokens. Your message was: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`;
+    // Get recent chat history
+    const history = await MessageModel.findRecentByChatId(chat.id, 20);
+    const claudeMessages = claudeService.messagesToClaudeFormat(history);
 
-    // Accumulate full response for storage
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
     let fullResponse = '';
+    let tokenUsage: any = null;
 
-    // Stream response
-    await streamingService.streamResponse(res, responseText, {
+    // Stream from Claude
+    await claudeService.streamChat(claudeMessages, {
       requestId: req.requestId,
       onToken: (token) => {
         fullResponse += token;
+
+        // Send token to client
+        if (!res.writableEnded) {
+          const eventData = JSON.stringify({
+            token,
+            done: false,
+          });
+          res.write(`data: ${eventData}\n\n`);
+        }
       },
-      onComplete: async () => {
-        // Store assistant message after streaming completes
+      onComplete: async (text, usage) => {
+        tokenUsage = usage;
+
+        // Send completion event
+        if (!res.writableEnded) {
+          const completeEvent = JSON.stringify({
+            token: '',
+            done: true,
+            fullText: text,
+            usage: {
+              input_tokens: usage.inputTokens,
+              output_tokens: usage.outputTokens,
+              total_tokens: usage.totalTokens,
+            },
+          });
+          res.write(`data: ${completeEvent}\n\n`);
+        }
+
+        // Store assistant message
         try {
           await MessageModel.create({
             chat_id: chat.id,
             role: 'assistant',
-            content: fullResponse,
+            content: text,
+            token_count: usage.outputTokens,
           });
 
           logger.info('Streaming chat completed', {
             requestId: req.requestId,
             chatId: chat.id,
-            responseLength: fullResponse.length,
+            responseLength: text.length,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            totalTokens: usage.totalTokens,
           });
         } catch (error) {
           logger.error('Failed to store streamed message', {
@@ -239,12 +274,23 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
             error,
           });
         }
+
+        res.end();
       },
       onError: (error) => {
         logger.error('Streaming error', {
           requestId: req.requestId,
           error,
         });
+
+        if (!res.writableEnded) {
+          const errorEvent = JSON.stringify({
+            error: 'Stream failed',
+            message: error.message,
+          });
+          res.write(`data: ${errorEvent}\n\n`);
+          res.end();
+        }
       },
     });
   } catch (error) {
@@ -254,10 +300,17 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     });
 
     if (!res.writableEnded) {
-      res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to process streaming chat request',
-      });
+      if (error instanceof Error && error.message.includes('API key')) {
+        res.status(500).json({
+          error: 'Configuration Error',
+          message: 'Claude API not configured. Please set ANTHROPIC_API_KEY.',
+        });
+      } else {
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Failed to process streaming chat request',
+        });
+      }
     }
   }
 });

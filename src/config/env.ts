@@ -15,6 +15,11 @@ interface Config {
     url: string;
     password?: string;
   };
+  claude: {
+    apiKey: string;
+    model: string;
+    maxTokens: number;
+  };
 }
 
 export const config: Config = {
@@ -27,8 +32,13 @@ export const config: Config = {
     poolMax: parseInt(process.env.DB_POOL_MAX || '10', 10),
   },
   redis: {
-    url: process.env.REDIS_URL || 'redis://localhost:3001',
+    url: process.env.REDIS_URL || 'redis://localhost:6379',
     password: process.env.REDIS_PASSWORD || undefined,
+  },
+  claude: {
+    apiKey: process.env.ANTHROPIC_API_KEY || 'YOUR_API_KEY',
+    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
+    maxTokens: parseInt(process.env.CLAUDE_MAX_TOKENS || '4096', 10),
   },
 };
 
