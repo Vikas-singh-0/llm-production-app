@@ -9,7 +9,7 @@ async function runMigrations() {
 
     // Run migrations in order
     const migrations = [
-      '001_initial_schema.sql',
+      // '001_initial_schema.sql',
       '002_chat_tables.sql',
     ];
 
