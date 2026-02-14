@@ -1,108 +1,168 @@
 import { Response } from 'express';
 import logger from '../infra/logger';
 
-interface StreamOptions {
+export interface StreamOptions {
   requestId: string;
   onToken?: (token: string) => void;
-  onComplete?: () => Promise<void> | void;
+  onComplete?: () => void;
   onError?: (error: Error) => void;
 }
 
 /**
- * Streaming service for Server-Sent Events (SSE)
- * Handles token-by-token streaming of responses
+ * Streaming Service
+ * 
+ * Simulates token-by-token streaming for testing infrastructure.
+ * Later, this will be replaced with actual LLM streaming.
  */
-export const streamingService = {
+export class StreamingService {
   /**
-   * Stream a response using Server-Sent Events (SSE)
-   * @param res Express Response object
-   * @param text The full text to stream
-   * @param options Streaming options including callbacks
+   * Stream a response token-by-token using Server-Sent Events
    */
   async streamResponse(
     res: Response,
     text: string,
     options: StreamOptions
   ): Promise<void> {
-    const { requestId, onToken, onComplete, onError } = options;
-
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
-    // Make sure response isn't compressed
-    res.removeHeader('Content-Encoding');
+    logger.info('Starting stream', {
+      requestId: options.requestId,
+      textLength: text.length,
+    });
 
     try {
-      // Split text into words/tokens for streaming simulation
-      const tokens = text.split(/(\s+)/);
-      
-      for (let i = 0; i < tokens.length; i++) {
-        const token = tokens[i];
-        
-        // Skip empty tokens
-        if (!token || token.trim() === '') {
-          continue;
+      // Split text into words (simulating tokens)
+      const words = text.split(' ');
+      let streamedText = '';
+
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        const token = i === words.length - 1 ? word : word + ' ';
+
+        // Check if client disconnected
+        if (res.writableEnded) {
+          logger.warn('Client disconnected during stream', {
+            requestId: options.requestId,
+            tokensStreamed: i,
+            totalTokens: words.length,
+          });
+          break;
         }
 
-        // Check if this is the last token
-        const isLastToken = i === tokens.length - 1;
+        // Send token as SSE event
+        const eventData = JSON.stringify({
+          token,
+          done: false,
+        });
+        res.write(`data: ${eventData}\n\n`);
 
-        // Create SSE data
-        const sseData = {
-          token: token,
-          done: isLastToken,
-          ...(isLastToken ? { fullText: text } : {})
-        };
+        streamedText += token;
 
-        // Send the token
-        res.write(`data: ${JSON.stringify(sseData)}\n\n`);
-
-        // Call the onToken callback if provided
-        if (onToken) {
-          onToken(token);
+        // Callback
+        if (options.onToken) {
+          options.onToken(token);
         }
 
-        // Small delay between tokens to simulate streaming (50ms)
-        if (!isLastToken) {
-          await new Promise(resolve => setTimeout(resolve, 50));
+        // Simulate delay between tokens (10-30ms per token)
+        // This mimics real LLM streaming latency
+        const delay = 10 + Math.random() * 20;
+        await this.sleep(delay);
+      }
+
+      // Send completion event
+      if (!res.writableEnded) {
+        const completeEvent = JSON.stringify({
+          token: '',
+          done: true,
+          fullText: streamedText,
+        });
+        res.write(`data: ${completeEvent}\n\n`);
+
+        logger.info('Stream completed', {
+          requestId: options.requestId,
+          tokensStreamed: words.length,
+          totalLength: streamedText.length,
+        });
+
+        if (options.onComplete) {
+          options.onComplete();
         }
       }
 
-      // Signal completion
-      res.write(`data: ${JSON.stringify({ token: '', done: true, fullText: text })}\n\n`);
-
-      // Call the onComplete callback if provided
-      if (onComplete) {
-        await onComplete();
-      }
-
-      // End the response
       res.end();
-
-      logger.info('Streaming completed', {
-        requestId,
-        textLength: text.length,
-      });
-
     } catch (error) {
-      logger.error('Streaming failed', {
-        requestId,
+      logger.error('Stream error', {
+        requestId: options.requestId,
         error,
       });
 
-      // Send error to client if possible
       if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ error: 'Streaming error occurred', done: true })}\n\n`);
+        const errorEvent = JSON.stringify({
+          error: 'Stream failed',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+        res.write(`data: ${errorEvent}\n\n`);
         res.end();
       }
 
-      // Call the onError callback if provided
-      if (onError && error instanceof Error) {
-        onError(error);
+      if (options.onError && error instanceof Error) {
+        options.onError(error);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Stream with abort support
+   */
+  async streamWithAbort(
+    res: Response,
+    text: string,
+    options: StreamOptions,
+    abortSignal?: AbortSignal
+  ): Promise<void> {
+    // Set up abort handler
+    const abortHandler = () => {
+      logger.info('Stream aborted by client', {
+        requestId: options.requestId,
+      });
+      if (!res.writableEnded) {
+        res.end();
+      }
+    };
+
+    if (abortSignal) {
+      abortSignal.addEventListener('abort', abortHandler);
+    }
+
+    // Set up client disconnect detection
+    res.on('close', () => {
+      logger.info('Client connection closed', {
+        requestId: options.requestId,
+      });
+    });
+
+    try {
+      await this.streamResponse(res, text, options);
+    } finally {
+      if (abortSignal) {
+        abortSignal.removeEventListener('abort', abortHandler);
       }
     }
-  },
-};
+  }
+
+  /**
+   * Helper to simulate async delay
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+export const streamingService = new StreamingService();
+export default streamingService;

@@ -7,6 +7,7 @@ import requestIdMiddleware from "./middleware/requestid.middleware";
 import metricsMiddleware from "./middleware/metrics.middleware";
 import fakeAuthMiddleware from "./middleware/fakeAuth.middleware";
 import rateLimitMiddleware from "./middleware/rateLimit.middleware";
+import corsMiddleware from './middleware/cors.middleware';
 
 export function createApp(): Application {
   const app = express();
@@ -15,6 +16,9 @@ export function createApp(): Application {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
+  // add cors middleware at the start
+  app.use(corsMiddleware);
+  
   // Request ID tracking (must be first)
   app.use(requestIdMiddleware);
 
