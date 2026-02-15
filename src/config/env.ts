@@ -20,6 +20,11 @@ interface Config {
     model: string;
     maxTokens: number;
   };
+  gemini: {
+    apiKey: string;
+    model: string;
+    maxTokens: number;
+  };
 }
 
 export const config: Config = {
@@ -39,6 +44,11 @@ export const config: Config = {
     apiKey: process.env.ANTHROPIC_API_KEY || 'YOUR_API_KEY',
     model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
     maxTokens: parseInt(process.env.CLAUDE_MAX_TOKENS || '4096', 10),
+  },
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || 'YOUR_API_KEY',
+    model: process.env.GEMINI_MODEL || '',
+    maxTokens: parseInt(process.env.GEMINI_MAX_TOKENS || '4096', 10),
   },
 };
 

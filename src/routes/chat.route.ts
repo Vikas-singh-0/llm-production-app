@@ -2,7 +2,8 @@ import { Request, Response, Router } from 'express';
 import { ChatModel } from '../models/chat.modal';
 import { MessageModel } from '../models/message.modal';
 import { streamingService } from '../services/streaming.service';
-import { claudeService } from '../services/claude.service';
+import { geminiService } from '../services/gemini.service';
+
 import logger from '../infra/logger';
 
 const router = Router();
@@ -11,7 +12,8 @@ const router = Router();
  * POST /chat
  * 
  * Send a message and get a response (non-streaming).
- * Uses real Claude API.
+ * Uses real Gemini API.
+
  */
 router.post('/chat', async (req: Request, res: Response) => {
   try {
@@ -76,15 +78,17 @@ router.post('/chat', async (req: Request, res: Response) => {
       chat_id: chat.id,
       role: 'user',
       content: message,
-      token_count: claudeService.estimateTokens(message),
+      token_count: geminiService.estimateTokens(message),
+
     });
 
     // Get recent chat history
     const history = await MessageModel.findRecentByChatId(chat.id, 20);
-    const claudeMessages = claudeService.messagesToClaudeFormat(history);
+    const geminiMessages = geminiService.messagesToGeminiFormat(history);
 
-    // Call Claude API (non-streaming)
-    const { text: assistantReply, usage } = await claudeService.chat(claudeMessages);
+    // Call Gemini API (non-streaming)
+    const { text: assistantReply, usage } = await geminiService.chat(geminiMessages);
+
 
     // Store assistant message
     const assistantMessage = await MessageModel.create({
@@ -125,10 +129,11 @@ router.post('/chat', async (req: Request, res: Response) => {
     if (error instanceof Error && error.message.includes('API key')) {
       res.status(500).json({
         error: 'Configuration Error',
-        message: 'Claude API not configured. Please set ANTHROPIC_API_KEY.',
+        message: 'Gemini API not configured. Please set GEMINI_API_KEY.',
       });
       return;
     }
+
 
     res.status(500).json({
       error: 'Internal Server Error',
@@ -141,7 +146,8 @@ router.post('/chat', async (req: Request, res: Response) => {
  * POST /chat/stream
  * 
  * Send a message and get a streaming response (SSE).
- * Uses real Claude API with token streaming.
+ * Uses real Gemini API with token streaming.
+
  */
 router.post('/chat/stream', async (req: Request, res: Response) => {
   try {
@@ -202,14 +208,16 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       chat_id: chat.id,
       role: 'user',
       content: message,
-      token_count: claudeService.estimateTokens(message),
+      token_count: geminiService.estimateTokens(message),
+
     });
 
     // Get recent chat history
     const history = await MessageModel.findRecentByChatId(chat.id, 20);
-    const claudeMessages = claudeService.messagesToClaudeFormat(history);
+    const geminiMessages = geminiService.messagesToGeminiFormat(history);
 
     // Set SSE headers
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -218,8 +226,9 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     let fullResponse = '';
     let tokenUsage: any = null;
 
-    // Stream from Claude
-    await claudeService.streamChat(claudeMessages, {
+    // Stream from Gemini
+    await geminiService.streamChat(geminiMessages, {
+
       requestId: req.requestId,
       onToken: (token) => {
         fullResponse += token;
@@ -300,12 +309,13 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     });
 
     if (!res.writableEnded) {
-      if (error instanceof Error && error.message.includes('API key')) {
+    if (error instanceof Error && error.message.includes('API key')) {
         res.status(500).json({
           error: 'Configuration Error',
-          message: 'Claude API not configured. Please set ANTHROPIC_API_KEY.',
+          message: 'Gemini API not configured. Please set GEMINI_API_KEY.',
         });
       } else {
+
         res.status(500).json({
           error: 'Internal Server Error',
           message: 'Failed to process streaming chat request',
