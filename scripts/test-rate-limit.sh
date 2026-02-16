@@ -1,3 +1,18 @@
+ curl -s -X POST http://localhost:3000/chat \
+    -H "Content-Type: application/json" \
+    -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
+    -H "x-user-id: 27bc8096-2f47-4eef-8655-42cef0885f7a" \
+    -d "{\"chat_id\":\"649d5de5-6487-4ffd-b2c2-3c0d45b97e5e\",\"message\":\"Message $i: We are discussing LLM memory, summarization, and system architecture.\"}" > /dev/null
+
+curl -s -X POST http://localhost:3000/chat \
+  -H "Content-Type: application/json" \
+    -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
+    -H "x-user-id: 27bc8096-2f47-4eef-8655-42cef0885f7a" \
+  -d '{"chat_id":"649d5de5-6487-4ffd-b2c2-3c0d45b97e5e","message":"Summarize everything we discussed so far in 5 bullet points."}' | jq
+
+
+
+
 #!/bin/bash
 
 echo "🧪 Testing STEP 1.2 - Rate Limiting & Abuse Safety"
