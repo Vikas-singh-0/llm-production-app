@@ -53,7 +53,7 @@ export class GeminiService {
 
     // Initialize model with specific safety settings to avoid over-blocking
     this.model = this.genAI.getGenerativeModel({
-      model: "models/gemini-2.5-pro",
+      model: "models/gemini-2.5-flash",
 
       // ✅ This nesting is correct for @google/generative-ai
       generationConfig: {

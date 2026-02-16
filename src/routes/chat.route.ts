@@ -2,7 +2,7 @@ import { Request, Response, Router } from 'express';
 import { ChatModel } from '../models/chat.model';
 import { MessageModel } from '../models/message.model';
 import { streamingService } from '../services/streaming.service';
-import { geminiService } from '../services/gemini.service';
+import { llmFactory } from '../services/llm.factory';
 import { memoryService } from '../services/memory.service';
 import logger from '../infra/logger';
 
@@ -77,7 +77,7 @@ router.post('/chat', async (req: Request, res: Response) => {
       chat_id: chat.id,
       role: 'user',
       content: message,
-      token_count: geminiService.estimateTokens(message),
+      token_count: llmFactory.getProvider().estimateTokens(message),
     });
 
     // Get all messages and apply sliding window with summary
@@ -114,10 +114,10 @@ router.post('/chat', async (req: Request, res: Response) => {
       hasSummary: !!summary,
     });
 
-    const geminiMessages = memoryService.formatForContext(contextMessages, summary);
+    const providerMessages = memoryService.formatMessagesForProvider(contextMessages, summary);
 
-    // Call gemini API (non-streaming)
-    const { text: assistantReply, usage } = await geminiService.chat(geminiMessages);
+    // Call LLM API (non-streaming) with fallback
+    const { text: assistantReply, usage } = await llmFactory.chatWithFallback(providerMessages);
 
     // Store assistant message
     const assistantMessage = await MessageModel.create({
@@ -235,7 +235,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       chat_id: chat.id,
       role: 'user',
       content: message,
-      token_count: geminiService.estimateTokens(message),
+      token_count: llmFactory.getProvider().estimateTokens(message),
     });
 
     // Get all messages and apply sliding window with summary
@@ -272,7 +272,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       hasSummary: !!summary,
     });
 
-    const geminiMessages = memoryService.formatForContext(contextMessages, summary);
+    const providerMessages = memoryService.formatMessagesForProvider(contextMessages, summary);
 
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -283,10 +283,10 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     let fullResponse = '';
     let tokenUsage: any = null;
 
-    // Stream from gemini
-    await geminiService.streamChat(geminiMessages, {
+    // Stream from LLM provider with fallback
+    await llmFactory.streamChatWithFallback(providerMessages, {
       requestId: req.requestId,
-      onToken: (token) => {
+      onToken: (token: string) => {
         fullResponse += token;
 
         // Send token to client
@@ -298,7 +298,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
           res.write(`data: ${eventData}\n\n`);
         }
       },
-      onComplete: async (text, usage) => {
+      onComplete: async (text: string, usage: any) => {
         tokenUsage = usage;
 
         // Send completion event
@@ -342,7 +342,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
 
         res.end();
       },
-      onError: (error) => {
+      onError: (error: Error) => {
         logger.error('Streaming error', {
           requestId: req.requestId,
           error,

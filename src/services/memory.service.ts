@@ -3,7 +3,7 @@ import logger from '../infra/logger';
 import { Message } from '../models/message.model';
 import { SummaryModel, Summary } from '../models/summary.model';
 import { GeminiMessage } from './gemini.service';
-import Anthropic from '@anthropic-ai/sdk';
+import { llmFactory } from './llm.factory';
 import config from '../config/env';
 
 export interface MemoryWindow {
@@ -25,16 +25,11 @@ export interface MemoryWindow {
 export class MemoryService {
   private maxContextTokens: number;
   private summaryTokenBudget: number;
-  private client: Anthropic;
 
   constructor() {
     // Reserve tokens for response
     this.maxContextTokens = 8000;  // Safe limit for context
     this.summaryTokenBudget = 500; // Reserve for summary
-    
-    this.client = new Anthropic({
-      apiKey: config.gemini.apiKey,
-    });
   }
 
   /**
@@ -135,29 +130,15 @@ export class MemoryService {
         0
       );
 
-      // Call gemini to generate summary
-      const response = await this.client.messages.create({
-        model: config.gemini.model,
-        max_tokens: 500,  // Short summary
-        messages: [
-          {
-            role: 'user',
-            content: `Please provide a concise summary of this conversation, focusing on the main topics discussed, key decisions made, and important context. Keep it brief but comprehensive.
+      // Use LLM factory to generate summary (supports local and external providers)
+      const provider = llmFactory.getProvider();
+      const result = await provider.chat(
+        [{ role: 'user', content: `Please provide a concise summary of this conversation, focusing on the main topics discussed, key decisions made, and important context. Keep it brief but comprehensive. Conversation:
+${conversationText} Summary:` }], 'summarization'
+      );
 
-Conversation:
-${conversationText}
-
-Summary:`,
-          },
-        ],
-      });
-
-      const summaryContent = response.content
-        .filter(block => block.type === 'text')
-        .map(block => block.type === 'text' ? block.text : '')
-        .join('');
-
-      const summaryTokens = response.usage.output_tokens;
+      const summaryContent = result.text;
+      const summaryTokens = result.usage.outputTokens;
 
       // Store summary in database
       const summary = await SummaryModel.create({
@@ -350,6 +331,39 @@ Summary:`,
 
     return geminiMessages;
   }
+
+  /**
+   * Format messages for the current LLM provider (with summary prepended)
+   * Returns the appropriate format based on the configured provider
+   */
+  formatMessagesForProvider(messages: Message[], summary?: Summary | null): any[] {
+    const providerName = llmFactory.getProviderName();
+    
+    // For now, we use a common format that works with all providers
+    // Each provider service will convert to its specific format
+    const chatMessages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
+
+    // If summary exists, add it as system context at the beginning
+    if (summary) {
+      chatMessages.push({
+        role: 'system',
+        content: `[Previous conversation summary: ${summary.content}]`,
+      });
+    }
+
+    // Add recent messages
+    const recentMessages = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
+    chatMessages.push(...recentMessages);
+
+    return chatMessages;
+  }
+
 }
 
 export const memoryService = new MemoryService();
