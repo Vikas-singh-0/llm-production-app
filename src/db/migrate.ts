@@ -11,8 +11,8 @@ async function runMigrations() {
     const migrations = [
       // '001_initial_schema.sql',
       // '002_chat_tables.sql',
-      '003_prompts.sql',
-      // '004_summaries.sql',
+      // '003_prompts.sql',
+      '004_summaries.sql',
     ];
 
     for (const migrationFile of migrations) {
