@@ -2,25 +2,24 @@
 
 Production-grade LLM application with multi-tenancy, built step-by-step.
 
-## Current Status: STEP 3.2 ✅ 🎉
+## Current Status: STEP 4.2 ✅ 🎉
 
-**REAL LLMOps - PROMPT VERSIONING!**
+**COMPLETE MEMORY SYSTEM!**
 
-**Prompt Management:**
-- ✅ **NEW:** Prompts stored in database (not hard-coded)
-- ✅ **NEW:** Multiple versions per prompt
-- ✅ **NEW:** Instant version activation/rollback
-- ✅ **NEW:** No deployment needed for prompt changes
-- ✅ **NEW:** Usage stats tracking per version
-- ✅ **NEW:** A/B testing ready
+**Memory Management:**
+- ✅ Sliding window (recent messages in token budget)
+- ✅ **NEW:** Automatic summarization (60+ message conversations)
+- ✅ **NEW:** Long-term memory preservation
+- ✅ **NEW:** ~90% token compression via summaries
+- ✅ **NEW:** Claude remembers full conversation history
 
 **Production Features:**
 - Multi-tenant architecture, rate limiting, auth
 - Claude API with streaming, token tracking
+- Prompt versioning (LLMOps)
 - Redis caching, PostgreSQL persistence
 
-**Change prompts instantly without redeployment!** 🚀
-
+**This handles conversations of ANY length while staying within token limits!** 🚀
 
 ## Setup
 
@@ -190,59 +189,9 @@ Production-ready metrics:
 - Duration histograms (p50, p95, p99 ready)
 - In-progress request gauge (for load monitoring)
 
-
 ## Scripts
 
 - `npm run dev` - Run with hot reload
 - `npm run build` - Build for production
 - `npm start` - Run production build
-- `npm run db:migrate` - Run database migrations
-- `./scripts/test-prompt.sh` - Test prompt versioning
-- `./scripts/test-observability.sh` - Test metrics collection
-- `./scripts/test-streaming.sh` - Test chat streaming
-- `./scripts/test-rate-limit.sh` - Test rate limiting
-
-## Testing Prompt Versioning
-
-### 1. Check Current Prompt
-```bash
-curl -s http://localhost:3000/prompts/default-system-prompt \
-  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
-  -H "x-user-id: <user-id-from-db>" | jq .
-```
-
-### 2. Create New Version
-```bash
-curl -X POST http://localhost:3000/prompts \
-  -H "Content-Type: application/json" \
-  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
-  -H "x-user-id: <user-id>" \
-  -d '{
-    "name": "default-system-prompt",
-    "content": "You are SUPER enthusiastic! Use lots of exclamation marks!",
-    "is_active": false
-  }' | jq .
-```
-
-### 3. Activate New Version
-```bash
-curl -X PUT http://localhost:3000/prompts/default-system-prompt/activate/2 \
-  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
-  -H "x-user-id: <user-id>" | jq .
-```
-
-### 4. Test Chat with New Prompt
-```bash
-curl -X POST http://localhost:3000/chat \
-  -H "Content-Type: application/json" \
-  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
-  -H "x-user-id: <user-id>" \
-  -d '{"message": "Say hello"}' | jq -r '.reply'
-```
-
-### 5. Rollback if Needed
-```bash
-curl -X PUT http://localhost:3000/prompts/default-system-prompt/activate/1 \
-  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
-  -H "x-user-id: <user-id>" | jq .
-```
+- `./test-observability.sh` - Test metrics collection

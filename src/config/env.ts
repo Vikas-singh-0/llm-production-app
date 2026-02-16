@@ -2,6 +2,8 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+export type LLMProvider = 'gemini' | 'claude' | 'local';
+
 interface Config {
   nodeEnv: string;
   port: number;
@@ -25,6 +27,14 @@ interface Config {
     model: string;
     maxTokens: number;
   };
+  local: {
+    enabled: boolean;
+    provider: 'ollama' | 'llama.cpp' | 'lm-studio';
+    baseUrl: string;
+    model: string;
+    maxTokens: number;
+  };
+  defaultProvider: LLMProvider;
 }
 
 export const config: Config = {
@@ -50,6 +60,14 @@ export const config: Config = {
     model: process.env.GEMINI_MODEL || '',
     maxTokens: parseInt(process.env.GEMINI_MAX_TOKENS || '4096', 10),
   },
+  local: {
+    enabled: process.env.LOCAL_LLM_ENABLED === 'true',
+    provider: (process.env.LOCAL_LLM_PROVIDER as 'ollama' | 'llama.cpp' | 'lm-studio') || 'ollama',
+    baseUrl: process.env.LOCAL_LLM_BASE_URL || 'http://localhost:11434',
+    model: process.env.LOCAL_LLM_MODEL || 'llama3',
+    maxTokens: parseInt(process.env.LOCAL_LLM_MAX_TOKENS || '4096', 10),
+  },
+  defaultProvider: (process.env.DEFAULT_LLM_PROVIDER as LLMProvider) || 'local',
 };
 
 export default config;

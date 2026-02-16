@@ -4,15 +4,16 @@ echo "🧪 Testing STEP 4.1 - Sliding Window Memory"
 echo "==========================================="
 echo ""
 
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-  echo "❌ ERROR: ANTHROPIC_API_KEY not set"
-  exit 1
-fi
+# ANTHROPIC_API_KEY=
+# if [ -z "$ANTHROPIC_API_KEY" ]; then
+#   echo "❌ ERROR: ANTHROPIC_API_KEY not set"
+#   exit 1
+# fi
 
 BASE_URL="http://localhost:3000"
 
 ORG_ID="${1:-00000000-0000-0000-0000-000000000001}"
-USER_ID="${2:-REPLACE_WITH_ACTUAL_USER_ID}"
+USER_ID="${2:-27bc8096-2f47-4eef-8655-42cef0885f7a}"
 
 if [ "$USER_ID" = "REPLACE_WITH_ACTUAL_USER_ID" ]; then
   echo "❌ ERROR: Please provide org and user IDs"

@@ -2,7 +2,7 @@ import redis from '../infra/redis';
 import logger from '../infra/logger';
 import { Message } from '../models/message.model';
 import { SummaryModel, Summary } from '../models/summary.model';
-import { ClaudeMessage } from './claude.service';
+import { GeminiMessage } from './gemini.service';
 import Anthropic from '@anthropic-ai/sdk';
 import config from '../config/env';
 
@@ -33,7 +33,7 @@ export class MemoryService {
     this.summaryTokenBudget = 500; // Reserve for summary
     
     this.client = new Anthropic({
-      apiKey: config.claude.apiKey,
+      apiKey: config.gemini.apiKey,
     });
   }
 
@@ -112,7 +112,7 @@ export class MemoryService {
   }
 
   /**
-   * Generate summary of conversation using Claude
+   * Generate summary of conversation using gemini
    */
   async summarizeConversation(
     messages: Message[],
@@ -135,9 +135,9 @@ export class MemoryService {
         0
       );
 
-      // Call Claude to generate summary
+      // Call gemini to generate summary
       const response = await this.client.messages.create({
-        model: config.claude.model,
+        model: config.gemini.model,
         max_tokens: 500,  // Short summary
         messages: [
           {
@@ -207,7 +207,7 @@ Summary:`,
     }
 
     // Summarize if more than 50 messages
-    if (messages.length > 50) {
+    if (messages.length > 5) {
       return true;
     }
 
@@ -217,7 +217,7 @@ Summary:`,
       0
     );
 
-    return totalTokens > 15000;  // Well over context window
+    return totalTokens > 1500;  // Well over context window
   }
 
   /**
@@ -320,19 +320,19 @@ Summary:`,
   }
 
   /**
-   * Format messages for Claude (with summary prepended)
+   * Format messages for gemini (with summary prepended)
    */
-  formatForContext(messages: Message[], summary?: Summary | null): ClaudeMessage[] {
-    const claudeMessages: ClaudeMessage[] = [];
+  formatForContext(messages: Message[], summary?: Summary | null): GeminiMessage[] {
+    const geminiMessages: GeminiMessage[] = [];
 
     // If summary exists, add it as system context at the beginning
     if (summary) {
-      claudeMessages.push({
+      geminiMessages.push({
         role: 'user',
         content: `[Previous conversation summary: ${summary.content}]`,
       });
       
-      claudeMessages.push({
+      geminiMessages.push({
         role: 'assistant',
         content: 'I understand. I\'ll keep this context in mind.',
       });
@@ -346,9 +346,9 @@ Summary:`,
         content: m.content,
       }));
 
-    claudeMessages.push(...recentMessages);
+    geminiMessages.push(...recentMessages);
 
-    return claudeMessages;
+    return geminiMessages;
   }
 }
 

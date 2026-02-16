@@ -12,7 +12,7 @@ import { Message } from "../models/message.model";
 import { PromptModel } from "../models/prompt.model";
 
 export interface GeminiMessage {
-  role: "user" | "model";
+  role: "user" | "model" | "assistant";
   content: string;
 }
 
@@ -53,7 +53,7 @@ export class GeminiService {
 
     // Initialize model with specific safety settings to avoid over-blocking
     this.model = this.genAI.getGenerativeModel({
-      model: "models/gemini-2.5-flash",
+      model: "models/gemini-2.5-pro",
 
       // ✅ This nesting is correct for @google/generative-ai
       generationConfig: {

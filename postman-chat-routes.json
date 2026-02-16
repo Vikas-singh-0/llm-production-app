@@ -1,0 +1,629 @@
+{
+  "info": {
+    "name": "LLM Production App - Chat API",
+    "description": "Postman collection for testing all chat-related routes in the LLM Production App",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "orgId",
+      "value": "00000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "REPLACE_WITH_ACTUAL_USER_ID",
+      "type": "string"
+    },
+    {
+      "key": "chatId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Chat Operations",
+      "item": [
+        {
+          "name": "POST /chat - Send message (non-streaming)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}",
+                "description": "Organization ID for multi-tenancy"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}",
+                "description": "User ID for authentication"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello! This is my first message.\",\n  \"chat_id\": \"{{chatId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('chatId', response.chat_id);",
+                  "    pm.test('Response has chat_id', () => { pm.expect(response).to.have.property('chat_id'); });",
+                  "    pm.test('Response has reply', () => { pm.expect(response).to.have.property('reply'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /chat/stream - Send message (streaming)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/chat/stream",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "stream"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello from streaming endpoint\",\n  \"chat_id\": \"{{chatId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /chat/:chatId - Get chat history",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/chat/{{chatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "{{chatId}}"]
+            },
+            "header": [
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "PUT /chat/:chatId - Update chat title",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/chat/{{chatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "{{chatId}}"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Chat Title\"\n}"
+            }
+          }
+        },
+        {
+          "name": "DELETE /chat/:chatId - Delete a chat",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/chat/{{chatId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "{{chatId}}"]
+            },
+            "header": [
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat List Operations",
+      "item": [
+        {
+          "name": "GET /chats - List user's chats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/chats",
+              "host": ["{{baseUrl}}"],
+              "path": ["chats"]
+            },
+            "header": [
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "POST /chats - Create new empty chat",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/chats",
+              "host": ["{{baseUrl}}"],
+              "path": ["chats"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"New Chat\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('chatId', response.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /chats/org - List org chats",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/chats/org",
+              "host": ["{{baseUrl}}"],
+              "path": ["chats", "org"]
+            },
+            "header": [
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Message Operations",
+      "item": [
+        {
+          "name": "GET /chat/:chatId/messages - Get messages",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/chat/{{chatId}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "{{chatId}}", "messages"]
+            },
+            "header": [
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "GET /chat/:chatId/messages - Get messages with limit",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/chat/{{chatId}}/messages?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "{{chatId}}", "messages"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "GET /chat/:chatId/messages/count - Get message count",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/chat/{{chatId}}/messages/count",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "{{chatId}}", "messages", "count"]
+            },
+            "header": [
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation Tests",
+      "item": [
+        {
+          "name": "POST /chat - Empty message (should fail)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 400 for empty message', () => {",
+                  "    pm.expect(pm.response.code).to.equal(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /chat - Missing message (should fail)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 400 for missing message', () => {",
+                  "    pm.expect(pm.response.code).to.equal(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /chat - No auth headers (should fail)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"This should fail\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 401 without auth', () => {",
+                  "    pm.expect(pm.response.code).to.equal(401);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /chat/:chatId - Invalid chat ID (should fail)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/chat/invalid-chat-id",
+              "host": ["{{baseUrl}}"],
+              "path": ["chat", "invalid-chat-id"]
+            },
+            "header": [
+              {
+                "key": "x-org-id",
+                "value": "{{orgId}}"
+              },
+              {
+                "key": "x-user-id",
+                "value": "{{userId}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Returns 404 for invalid chat', () => {",
+                  "    pm.expect(pm.response.code).to.equal(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Integration Tests",
+      "item": [
+        {
+          "name": "Full conversation flow",
+          "item": [
+            {
+              "name": "Step 1: Create new chat",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/chat",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["chat"]
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "x-org-id",
+                    "value": "{{orgId}}"
+                  },
+                  {
+                    "key": "x-user-id",
+                    "value": "{{userId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"Hello! Let's start a conversation.\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Step 2: Send follow-up message",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{baseUrl}}/chat",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["chat"]
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "x-org-id",
+                    "value": "{{orgId}}"
+                  },
+                  {
+                    "key": "x-user-id",
+                    "value": "{{userId}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"This is my second message.\",\n  \"chat_id\": \"{{chatId}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Step 3: Get chat history",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/chat/{{chatId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["chat", "{{chatId}}"]
+                },
+                "header": [
+                  {
+                    "key": "x-org-id",
+                    "value": "{{orgId}}"
+                  },
+                  {
+                    "key": "x-user-id",
+                    "value": "{{userId}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Step 4: Get message count",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/chat/{{chatId}}/messages/count",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["chat", "{{chatId}}", "messages", "count"]
+                },
+                "header": [
+                  {
+                    "key": "x-org-id",
+                    "value": "{{orgId}}"
+                  },
+                  {
+                    "key": "x-user-id",
+                    "value": "{{userId}}"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "Step 5: List user chats",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/chats",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["chats"]
+                },
+                "header": [
+                  {
+                    "key": "x-org-id",
+                    "value": "{{orgId}}"
+                  },
+                  {
+                    "key": "x-user-id",
+                    "value": "{{userId}}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
