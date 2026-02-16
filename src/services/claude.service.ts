@@ -1,7 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import config from '../config/env';
 import logger from '../infra/logger';
-import { Message } from '../models/message.modal';
+import { Message } from '../models/message.model';
+import { PromptModel } from '../models/prompt.model';
 
 export interface ClaudeMessage {
   role: 'user' | 'assistant';
@@ -10,6 +11,7 @@ export interface ClaudeMessage {
 
 export interface ClaudeStreamOptions {
   requestId: string;
+  promptName?: string;  // Which prompt to use
   onToken?: (token: string) => void;
   onComplete?: (fullText: string, usage: TokenUsage) => void;
   onError?: (error: Error) => void;
@@ -28,6 +30,7 @@ export interface TokenUsage {
  * - Message streaming
  * - Token counting
  * - Budget enforcement
+ * - Prompt versioning
  */
 export class ClaudeService {
   private client: Anthropic;
@@ -53,21 +56,58 @@ export class ClaudeService {
   }
 
   /**
-   * Stream a chat completion
+   * Get system prompt from database
+   */
+  private async getSystemPrompt(promptName: string = 'default-system-prompt'): Promise<{
+    content: string;
+    promptId: string;
+  }> {
+    const prompt = await PromptModel.getActive(promptName);
+    
+    if (!prompt) {
+      logger.warn('No active prompt found, using fallback', { promptName });
+      return {
+        content: 'You are a helpful AI assistant.',
+        promptId: 'fallback',
+      };
+    }
+
+    logger.debug('Using prompt', {
+      name: prompt.name,
+      version: prompt.version,
+      promptId: prompt.id,
+    });
+
+    return {
+      content: prompt.content,
+      promptId: prompt.id,
+    };
+  }
+
+  /**
+   * Stream a chat completion with versioned prompts
    */
   async streamChat(
     messages: ClaudeMessage[],
     options: ClaudeStreamOptions
   ): Promise<void> {
+    const startTime = Date.now();
+
     try {
+      // Get system prompt from database
+      const { content: systemPrompt, promptId } = await this.getSystemPrompt(
+        options.promptName
+      );
+
       logger.info('Starting Claude stream', {
         requestId: options.requestId,
         messageCount: messages.length,
         model: this.model,
         maxTokens: this.maxTokens,
+        promptId,
       });
 
-      // Convert to Anthropic format
+      // Convert to Anthropic format with system prompt
       const anthropicMessages = messages.map(m => ({
         role: m.role,
         content: m.content,
@@ -77,6 +117,7 @@ export class ClaudeService {
       const stream = await this.client.messages.stream({
         model: this.model,
         max_tokens: this.maxTokens,
+        system: systemPrompt,  // System prompt from database
         messages: anthropicMessages,
       });
 
@@ -115,12 +156,21 @@ export class ClaudeService {
         totalTokens: inputTokens + outputTokens,
       };
 
+      const responseTime = Date.now() - startTime;
+
+      // Update prompt stats
+      if (promptId !== 'fallback') {
+        await PromptModel.updateStats(promptId, usage.totalTokens, responseTime);
+      }
+
       logger.info('Claude stream completed', {
         requestId: options.requestId,
         inputTokens,
         outputTokens,
         totalTokens: usage.totalTokens,
         responseLength: fullText.length,
+        responseTimeMs: responseTime,
+        promptId,
       });
 
       if (options.onComplete) {
@@ -141,16 +191,25 @@ export class ClaudeService {
   }
 
   /**
-   * Non-streaming chat completion
+   * Non-streaming chat completion with versioned prompts
    */
-  async chat(messages: ClaudeMessage[]): Promise<{ 
+  async chat(
+    messages: ClaudeMessage[],
+    promptName: string = 'default-system-prompt'
+  ): Promise<{ 
     text: string; 
     usage: TokenUsage;
   }> {
+    const startTime = Date.now();
+
     try {
+      // Get system prompt from database
+      const { content: systemPrompt, promptId } = await this.getSystemPrompt(promptName);
+
       logger.info('Starting Claude request', {
         messageCount: messages.length,
         model: this.model,
+        promptId,
       });
 
       const anthropicMessages = messages.map(m => ({
@@ -161,6 +220,7 @@ export class ClaudeService {
       const response = await this.client.messages.create({
         model: this.model,
         max_tokens: this.maxTokens,
+        system: systemPrompt,  // System prompt from database
         messages: anthropicMessages,
       });
 
@@ -175,10 +235,19 @@ export class ClaudeService {
         totalTokens: response.usage.input_tokens + response.usage.output_tokens,
       };
 
+      const responseTime = Date.now() - startTime;
+
+      // Update prompt stats
+      if (promptId !== 'fallback') {
+        await PromptModel.updateStats(promptId, usage.totalTokens, responseTime);
+      }
+
       logger.info('Claude request completed', {
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
         totalTokens: usage.totalTokens,
+        responseTimeMs: responseTime,
+        promptId,
       });
 
       return { text, usage };

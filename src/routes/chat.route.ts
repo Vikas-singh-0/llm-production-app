@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express';
-import { ChatModel } from '../models/chat.modal';
-import { MessageModel } from '../models/message.modal';
+import { ChatModel } from '../models/chat.model';
+import { MessageModel } from '../models/message.model';
 import { streamingService } from '../services/streaming.service';
 import { geminiService } from '../services/gemini.service';
 

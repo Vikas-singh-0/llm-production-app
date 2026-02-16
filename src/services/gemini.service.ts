@@ -1,22 +1,24 @@
-import { 
-  GoogleGenerativeAI, 
-  GenerativeModel, 
+import {
+  GoogleGenerativeAI,
+  GenerativeModel,
   Content,
   HarmCategory,
   HarmBlockThreshold,
-  GenerateContentStreamResult
-} from '@google/generative-ai';
-import config from '../config/env';
-import logger from '../infra/logger';
-import { Message } from '../models/message.modal';
+  GenerateContentStreamResult,
+} from "@google/generative-ai";
+import config from "../config/env";
+import logger from "../infra/logger";
+import { Message } from "../models/message.model";
+import { PromptModel } from "../models/prompt.model";
 
 export interface GeminiMessage {
-  role: 'user' | 'model';
+  role: "user" | "model";
   content: string;
 }
 
 export interface GeminiStreamOptions {
   requestId: string;
+  promptName?: string; // Which prompt to use
   onToken?: (token: string) => void;
   onComplete?: (fullText: string, usage: TokenUsage) => void;
   onError?: (error: Error) => void;
@@ -30,10 +32,12 @@ export interface TokenUsage {
 
 /**
  * Gemini Service
- * * Handles interactions with Google Gemini API:
+ *
+ * Handles interactions with Google Gemini API:
  * - Message streaming with safety handling
  * - Token counting (server-side & estimation)
  * - Budget enforcement
+ * - Prompt versioning
  */
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
@@ -42,19 +46,20 @@ export class GeminiService {
 
   constructor() {
     if (!config.gemini.apiKey) {
-      throw new Error('GEMINI_API_KEY is required in config');
+      throw new Error("GEMINI_API_KEY is required in config");
     }
 
     this.genAI = new GoogleGenerativeAI(config.gemini.apiKey);
-    
+
     // Initialize model with specific safety settings to avoid over-blocking
-    this.model = this.genAI.getGenerativeModel({ 
-      model: config.gemini.model || 'gemini-2.5-flash',
+    this.model = this.genAI.getGenerativeModel({
+      model: "models/gemini-2.5-flash",
+
+      // ✅ This nesting is correct for @google/generative-ai
       generationConfig: {
         maxOutputTokens: config.gemini.maxTokens || 2048,
         temperature: 0.9,
-        topP: 1,
-        // topK: 1, // REMOVED: This forces deterministic output, negating temperature
+        // Removed topP: 1 to allow temperature to work better
       },
       safetySettings: [
         {
@@ -75,31 +80,70 @@ export class GeminiService {
         },
       ],
     });
-    
+
     this.maxTokens = config.gemini.maxTokens || 2048;
 
-    logger.info('Gemini service initialized', {
+    logger.info("Gemini service initialized", {
       model: config.gemini.model,
       maxTokens: this.maxTokens,
     });
   }
 
   /**
-   * Stream a chat completion
+   * Get system prompt from database
+   */
+  private async getSystemPrompt(
+    promptName: string = "default-system-prompt",
+  ): Promise<{
+    content: string;
+    promptId: string;
+  }> {
+    const prompt = await PromptModel.getActive(promptName);
+
+    if (!prompt) {
+      logger.warn("No active prompt found, using fallback", { promptName });
+      return {
+        content: "You are a helpful AI assistant.",
+        promptId: "fallback",
+      };
+    }
+
+    logger.debug("Using prompt", {
+      name: prompt.name,
+      version: prompt.version,
+      promptId: prompt.id,
+    });
+
+    return {
+      content: prompt.content,
+      promptId: prompt.id,
+    };
+  }
+
+  /**
+   * Stream a chat completion with versioned prompts
    */
   async streamChat(
     messages: GeminiMessage[],
-    options: GeminiStreamOptions
+    options: GeminiStreamOptions,
   ): Promise<void> {
+    const startTime = Date.now();
+
     try {
       if (!messages || messages.length === 0) {
         throw new Error("Message history cannot be empty");
       }
 
-      logger.info('Starting Gemini stream', {
+      // Get system prompt from database
+      const { content: systemPrompt, promptId } = await this.getSystemPrompt(
+        options.promptName,
+      );
+
+      logger.info("Starting Gemini stream", {
         requestId: options.requestId,
         messageCount: messages.length,
         model: config.gemini.model,
+        promptId,
       });
 
       // Convert messages to Gemini SDK format
@@ -109,15 +153,20 @@ export class GeminiService {
       const chatHistory = history.slice(0, -1);
       const lastMessageContent = messages[messages.length - 1].content;
 
-      // Create chat session
+      // Create chat session with system prompt
       const chat = this.model.startChat({
         history: chatHistory,
+        // 👇 WRAP IT LIKE THIS
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
+        },
       });
 
       // Stream the response
-      const result: GenerateContentStreamResult = await chat.sendMessageStream(lastMessageContent);
-      
-      let fullText = '';
+      const result: GenerateContentStreamResult =
+        await chat.sendMessageStream(lastMessageContent);
+
+      let fullText = "";
       let inputTokens = 0;
       let outputTokens = 0;
 
@@ -127,14 +176,14 @@ export class GeminiService {
           // IMPORTANT: chunk.text() throws if the chunk was blocked by safety filters
           const chunkText = chunk.text();
           fullText += chunkText;
-          
+
           if (options.onToken) {
             options.onToken(chunkText);
           }
         } catch (e) {
-          logger.warn('Gemini stream chunk blocked or empty', { 
+          logger.warn("Gemini stream chunk blocked or empty", {
             requestId: options.requestId,
-            reason: 'Safety Filter or Empty Chunk'
+            reason: "Safety Filter or Empty Chunk",
           });
           // We continue processing to get token usage even if text is blocked
         }
@@ -159,17 +208,32 @@ export class GeminiService {
         totalTokens: inputTokens + outputTokens,
       };
 
-      logger.info('Gemini stream completed', {
+      const responseTime = Date.now() - startTime;
+
+      // Update prompt stats
+      if (promptId !== "fallback") {
+        await PromptModel.updateStats(
+          promptId,
+          usage.totalTokens,
+          responseTime,
+        );
+      }
+
+      logger.info("Gemini stream completed", {
         requestId: options.requestId,
-        ...usage,
+        inputTokens,
+        outputTokens,
+        totalTokens: usage.totalTokens,
         responseLength: fullText.length,
+        responseTimeMs: responseTime,
+        promptId,
       });
 
       if (options.onComplete) {
         options.onComplete(fullText, usage);
       }
     } catch (error) {
-      logger.error('Gemini stream error', {
+      logger.error("Gemini stream error", {
         requestId: options.requestId,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -183,20 +247,30 @@ export class GeminiService {
   }
 
   /**
-   * Non-streaming chat completion
+   * Non-streaming chat completion with versioned prompts
    */
-  async chat(messages: GeminiMessage[]): Promise<{ 
-    text: string; 
+  async chat(
+    messages: GeminiMessage[],
+    promptName: string = "default-system-prompt",
+  ): Promise<{
+    text: string;
     usage: TokenUsage;
   }> {
+    const startTime = Date.now();
+
     try {
       if (!messages || messages.length === 0) {
-         throw new Error("Message history cannot be empty");
+        throw new Error("Message history cannot be empty");
       }
 
-      logger.info('Starting Gemini request', {
+      // Get system prompt from database
+      const { content: systemPrompt, promptId } =
+        await this.getSystemPrompt(promptName);
+
+      logger.info("Starting Gemini request", {
         messageCount: messages.length,
         model: config.gemini.model,
+        promptId,
       });
 
       const history = this.messagesToGeminiContents(messages);
@@ -205,33 +279,54 @@ export class GeminiService {
 
       const chat = this.model.startChat({
         history: chatHistory,
+        // 👇 WRAP IT LIKE THIS
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
+        },
       });
 
       const result = await chat.sendMessage(lastMessageContent);
       const response = await result.response;
-      
+
       // Handle blocked responses safely
-      let text = '';
+      let text = "";
       try {
         text = response.text();
       } catch (e) {
-        logger.warn('Gemini chat response blocked', { error: e });
+        logger.warn("Gemini chat response blocked", { error: e });
         text = "[Content Blocked by Safety Filters]";
       }
 
       const usage: TokenUsage = {
         inputTokens: response.usageMetadata?.promptTokenCount || 0,
         outputTokens: response.usageMetadata?.candidatesTokenCount || 0,
-        totalTokens: (response.usageMetadata?.promptTokenCount || 0) + (response.usageMetadata?.candidatesTokenCount || 0),
+        totalTokens:
+          (response.usageMetadata?.promptTokenCount || 0) +
+          (response.usageMetadata?.candidatesTokenCount || 0),
       };
 
-      logger.info('Gemini request completed', {
-        ...usage,
+      const responseTime = Date.now() - startTime;
+
+      // Update prompt stats
+      if (promptId !== "fallback") {
+        await PromptModel.updateStats(
+          promptId,
+          usage.totalTokens,
+          responseTime,
+        );
+      }
+
+      logger.info("Gemini request completed", {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+        responseTimeMs: responseTime,
+        promptId,
       });
 
       return { text, usage };
     } catch (error) {
-      logger.error('Gemini request error', { error });
+      logger.error("Gemini request error", { error });
       throw error;
     }
   }
@@ -240,8 +335,8 @@ export class GeminiService {
    * Convert internal messages to Gemini SDK contents format
    */
   private messagesToGeminiContents(messages: GeminiMessage[]): Content[] {
-    return messages.map(m => ({
-      role: m.role === 'model' ? 'model' : 'user',
+    return messages.map((m) => ({
+      role: m.role === "model" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
   }
@@ -251,9 +346,9 @@ export class GeminiService {
    */
   messagesToGeminiFormat(messages: Message[]): GeminiMessage[] {
     return messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
         content: m.content,
       }));
   }
@@ -273,7 +368,7 @@ export class GeminiService {
   wouldExceedBudget(messages: GeminiMessage[]): boolean {
     const estimatedInputTokens = messages.reduce(
       (sum, m) => sum + this.estimateTokens(m.content),
-      0
+      0,
     );
 
     // Leave room for response
@@ -281,7 +376,7 @@ export class GeminiService {
 
     // Gemini 1.5 Flash context window is huge (1M), so this is rarely hit
     // Adjust this limit based on your specific needs or tier constraints
-    const contextLimit = 1000000; 
+    const contextLimit = 1000000;
 
     return totalEstimated > contextLimit;
   }

@@ -2,24 +2,25 @@
 
 Production-grade LLM application with multi-tenancy, built step-by-step.
 
-## Current Status: STEP 3.1 ✅ 🎉
+## Current Status: STEP 3.2 ✅ 🎉
 
-**REAL AI IS HERE!**
+**REAL LLMOps - PROMPT VERSIONING!**
 
-**Working Features:**
-- ✅ Production infrastructure (metrics, logs, auth, rate limiting)
-- ✅ PostgreSQL multi-tenant data model
-- ✅ Redis with per-org token bucket rate limiting
-- ✅ Chat API with message persistence
-- ✅ SSE streaming infrastructure
-- ✅ **NEW:** Claude API integration (Sonnet 4)
-- ✅ **NEW:** Real LLM token streaming
-- ✅ **NEW:** Token counting and tracking
-- ✅ **NEW:** Budget enforcement (max_tokens)
-- ✅ **NEW:** Conversation context (last 20 messages)
-- ✅ **NEW:** Error handling for API failures
+**Prompt Management:**
+- ✅ **NEW:** Prompts stored in database (not hard-coded)
+- ✅ **NEW:** Multiple versions per prompt
+- ✅ **NEW:** Instant version activation/rollback
+- ✅ **NEW:** No deployment needed for prompt changes
+- ✅ **NEW:** Usage stats tracking per version
+- ✅ **NEW:** A/B testing ready
 
-**This is a fully functional AI chat application!** 🚀
+**Production Features:**
+- Multi-tenant architecture, rate limiting, auth
+- Claude API with streaming, token tracking
+- Redis caching, PostgreSQL persistence
+
+**Change prompts instantly without redeployment!** 🚀
+
 
 ## Setup
 
@@ -109,15 +110,60 @@ src/
 │   └── env.ts                  # Environment variables
 ├── routes/
 │   ├── health.route.ts         # Health check endpoint
-│   └── metrics.route.ts        # Prometheus metrics endpoint
+│   ├── metrics.route.ts        # Prometheus metrics endpoint
+│   ├── chat.route.ts           # Chat API with streaming
+│   └── prompt.route.ts         # Prompt management API (LLMOps)
+├── models/
+│   └── prompt.model.ts         # Prompt CRUD operations
 ├── middleware/
 │   ├── requestId.middleware.ts # Request ID correlation
-│   └── metrics.middleware.ts   # Metrics collection
+│   ├── metrics.middleware.ts   # Metrics collection
+│   ├── fakeAuth.middleware.ts  # Multi-tenant auth
+│   └── rateLimit.middleware.ts # Token bucket rate limiting
 ├── infra/
 │   ├── logger.ts              # Winston logger
-│   └── metrics.ts             # Prometheus metrics service
+│   ├── metrics.ts             # Prometheus metrics service
+│   ├── database.ts            # PostgreSQL connection
+│   └── redis.ts               # Redis caching
+├── services/
+│   ├── claude.service.ts      # Claude API integration
+│   └── rateLimiter.service.ts # Rate limiting logic
 └── index.ts                    # Entry point
 ```
+
+
+## LLMOps Features
+
+### 1. Database-Backed Prompts
+System prompts are stored in PostgreSQL, not hard-coded:
+- Change prompts without code deployment
+- Instant activation (0 downtime)
+- Safe rollback to previous versions
+- Track which version is active per prompt name
+
+### 2. Version Control
+Each prompt can have multiple versions:
+- Version 1: Original prompt
+- Version 2: Experimental changes
+- Version 3: Optimized version
+- Only one version active at a time (enforced by database trigger)
+
+### 3. Usage Stats
+Every prompt usage is tracked:
+- `total_uses` - How many times used
+- `avg_tokens` - Average tokens per request
+- `avg_response_time_ms` - Average response time
+- Compare versions to find optimal prompts
+
+### 4. Instant Rollback
+If a new prompt performs poorly:
+```bash
+# Rollback to version 1 instantly
+curl -X PUT /prompts/default-system-prompt/activate/1 \
+  -H "x-org-id: $ORG_ID" \
+  -H "x-user-id: $USER_ID"
+```
+No deployment, no downtime, no risk!
 
 ## Observability Features
 
@@ -144,9 +190,59 @@ Production-ready metrics:
 - Duration histograms (p50, p95, p99 ready)
 - In-progress request gauge (for load monitoring)
 
+
 ## Scripts
 
 - `npm run dev` - Run with hot reload
 - `npm run build` - Build for production
 - `npm start` - Run production build
-- `./test-observability.sh` - Test metrics collection
+- `npm run db:migrate` - Run database migrations
+- `./scripts/test-prompt.sh` - Test prompt versioning
+- `./scripts/test-observability.sh` - Test metrics collection
+- `./scripts/test-streaming.sh` - Test chat streaming
+- `./scripts/test-rate-limit.sh` - Test rate limiting
+
+## Testing Prompt Versioning
+
+### 1. Check Current Prompt
+```bash
+curl -s http://localhost:3000/prompts/default-system-prompt \
+  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
+  -H "x-user-id: <user-id-from-db>" | jq .
+```
+
+### 2. Create New Version
+```bash
+curl -X POST http://localhost:3000/prompts \
+  -H "Content-Type: application/json" \
+  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
+  -H "x-user-id: <user-id>" \
+  -d '{
+    "name": "default-system-prompt",
+    "content": "You are SUPER enthusiastic! Use lots of exclamation marks!",
+    "is_active": false
+  }' | jq .
+```
+
+### 3. Activate New Version
+```bash
+curl -X PUT http://localhost:3000/prompts/default-system-prompt/activate/2 \
+  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
+  -H "x-user-id: <user-id>" | jq .
+```
+
+### 4. Test Chat with New Prompt
+```bash
+curl -X POST http://localhost:3000/chat \
+  -H "Content-Type: application/json" \
+  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
+  -H "x-user-id: <user-id>" \
+  -d '{"message": "Say hello"}' | jq -r '.reply'
+```
+
+### 5. Rollback if Needed
+```bash
+curl -X PUT http://localhost:3000/prompts/default-system-prompt/activate/1 \
+  -H "x-org-id: 00000000-0000-0000-0000-000000000001" \
+  -H "x-user-id: <user-id>" | jq .
+```
