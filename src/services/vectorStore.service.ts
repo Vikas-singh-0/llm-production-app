@@ -1,7 +1,7 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
-import Anthropic from '@anthropic-ai/sdk';
-import config from '../config/env';
+import { getOllamaService } from './ollama.service';
 import logger from '../infra/logger';
+
 
 export interface VectorSearchResult {
   id: string;
@@ -17,9 +17,8 @@ export interface VectorSearchResult {
  */
 export class VectorStoreService {
   private client: QdrantClient;
-  private anthropic: Anthropic;
   private collectionName: string = 'document_chunks';
-  private vectorSize: number = 1024; // Voyage AI embedding size
+  private vectorSize: number = 768; // nomic-embed-text dimension
 
   constructor() {
     // Initialize Qdrant client
@@ -28,17 +27,14 @@ export class VectorStoreService {
       apiKey: process.env.QDRANT_API_KEY,
     });
 
-    // Initialize Anthropic for embeddings
-    // Note: We'll use Voyage AI via Anthropic's API
-    this.anthropic = new Anthropic({
-      apiKey: config.claude.apiKey,
-    });
-
     logger.info('Vector store service initialized', {
       qdrantUrl: process.env.QDRANT_URL,
       collection: this.collectionName,
+      vectorSize: this.vectorSize,
+      embeddingModel: 'nomic-embed-text',
     });
   }
+
 
   /**
    * Initialize collection if it doesn't exist
@@ -76,25 +72,13 @@ export class VectorStoreService {
   }
 
   /**
-   * Generate embedding for text
-   * Using a simple approach: convert text to vector using character codes
-   * In production, use Voyage AI or OpenAI embeddings
+   * Generate embedding for text using nomic-embed-text via Ollama
    */
   private async generateEmbedding(text: string): Promise<number[]> {
-    // TEMPORARY: Simple hash-based embedding for development
-    // In production, use: Voyage AI, OpenAI, or Cohere
-    const vector = new Array(this.vectorSize).fill(0);
-    
-    // Simple character-based embedding (NOT suitable for production)
-    for (let i = 0; i < text.length && i < this.vectorSize; i++) {
-      const charCode = text.charCodeAt(i);
-      vector[i % this.vectorSize] += charCode / 10000;
-    }
-
-    // Normalize
-    const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
-    return vector.map(val => val / (magnitude || 1));
+    const ollamaService = getOllamaService();
+    return await ollamaService.generateEmbedding(text);
   }
+
 
   /**
    * Index a document chunk
@@ -252,7 +236,8 @@ export class VectorStoreService {
     try {
       const info = await this.client.getCollection(this.collectionName);
       return {
-        vectorsCount: info.vectors_count || 0,
+        vectorsCount: info.indexed_vectors_count || info.points_count || 0,
+
         status: info.status,
       };
     } catch (error) {

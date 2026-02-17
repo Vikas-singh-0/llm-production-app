@@ -421,9 +421,55 @@ export class OllamaService {
 
     return totalEstimated > contextLimit;
   }
+
+  /**
+   * Generate embeddings for text using nomic-embed-text
+   */
+  async generateEmbedding(text: string): Promise<number[]> {
+    try {
+      logger.debug('Generating embedding', {
+        textLength: text.length,
+        model: 'nomic-embed-text',
+      });
+
+      const response = await fetch(`${this.baseUrl}/api/embeddings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'nomic-embed-text',
+          prompt: text,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Ollama embedding error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json() as { embedding: number[] };
+
+      if (!data.embedding || !Array.isArray(data.embedding)) {
+        throw new Error('Invalid embedding response from Ollama');
+      }
+
+      logger.debug('Embedding generated', {
+        dimensions: data.embedding.length,
+      });
+
+      return data.embedding;
+    } catch (error) {
+      logger.error('Failed to generate embedding', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
 }
 
 // Export a lazy-initialized singleton
+
 let ollamaServiceInstance: OllamaService | null = null;
 
 export function getOllamaService(): OllamaService {

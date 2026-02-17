@@ -5,6 +5,7 @@ import metricsRoute from './routes/metrics.route';
 import chatRoute from './routes/chat.route';
 import promptRoute from './routes/prompt.route';
 import documentRoute from './routes/document.route';
+import ragChatRoute from './routes/ragChat.route';
 import requestIdMiddleware from './middleware/requestid.middleware';
 import metricsMiddleware from './middleware/metrics.middleware';
 import fakeAuthMiddleware from './middleware/fakeAuth.middleware';
@@ -40,6 +41,7 @@ export function createApp(): Application {
   app.use(chatRoute);
   app.use(promptRoute);
   app.use(documentRoute);
+  app.use(ragChatRoute);
 
   return app;
 }
