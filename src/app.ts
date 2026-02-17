@@ -4,6 +4,7 @@ import healthRoute from './routes/health.route';
 import metricsRoute from './routes/metrics.route';
 import chatRoute from './routes/chat.route';
 import promptRoute from './routes/prompt.route';
+import documentRoute from './routes/document.route';
 import requestIdMiddleware from './middleware/requestid.middleware';
 import metricsMiddleware from './middleware/metrics.middleware';
 import fakeAuthMiddleware from './middleware/fakeAuth.middleware';
@@ -38,6 +39,7 @@ export function createApp(): Application {
   app.use(metricsRoute);
   app.use(chatRoute);
   app.use(promptRoute);
+  app.use(documentRoute);
 
   return app;
 }
