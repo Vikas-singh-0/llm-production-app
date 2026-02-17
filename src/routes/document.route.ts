@@ -5,7 +5,7 @@ import { DocumentModel } from '../models/docmuents.model';
 import { DocumentChunkModel } from '../models/documentChunk.model';
 import { storageService } from '../services/storage.service';
 import { documentQueue } from '../services/documentQueue.service';
-// import { vectorStoreService } from '../services/vectorStore.service';
+import { vectorStoreService } from '../services/vectorStore.service';
 import logger from '../infra/logger';
 
 const router = Router();
@@ -315,60 +315,60 @@ router.get('/documents/:id/chunks', async (req: Request, res: Response) => {
  * 
  * Semantic search across all user's documents
  */
-// router.post('/documents/search', async (req: Request, res: Response) => {
-//   try {
-//     if (!req.context) {
-//       res.status(401).json({ error: 'Unauthorized' });
-//       return;
-//     }
+router.post('/documents/search', async (req: Request, res: Response) => {
+  try {
+    if (!req.context) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
-//     const { query, limit } = req.body;
+    const { query, limit } = req.body;
 
-//     if (!query || typeof query !== 'string') {
-//       res.status(400).json({
-//         error: 'Bad Request',
-//         message: 'Query is required',
-//       });
-//       return;
-//     }
+    if (!query || typeof query !== 'string') {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'Query is required',
+      });
+      return;
+    }
 
-//     logger.info('Document search request', {
-//       requestId: req.requestId,
-//       orgId: req.context.orgId,
-//       query: query.substring(0, 50),
-//     });
+    logger.info('Document search request', {
+      requestId: req.requestId,
+      orgId: req.context.orgId,
+      query: query.substring(0, 50),
+    });
 
-//     // Search in vector DB
-//     // In production, filter by org_id for multi-tenancy
-//     const results = await vectorStoreService.search(query, limit || 5);
+    // Search in vector DB
+    // In production, filter by org_id for multi-tenancy
+    const results = await vectorStoreService.search(query, limit || 5);
 
-//     logger.info('Search completed', {
-//       requestId: req.requestId,
-//       resultsCount: results.length,
-//     });
+    logger.info('Search completed', {
+      requestId: req.requestId,
+      resultsCount: results.length,
+    });
 
-//     res.status(200).json({
-//       query,
-//       results: results.map(r => ({
-//         chunk_id: r.id,
-//         score: r.score,
-//         content: r.content.substring(0, 200) + '...', // Preview
-//         full_content: r.content,
-//         document_id: r.metadata.document_id,
-//         filename: r.metadata.filename,
-//       })),
-//       count: results.length,
-//     });
-//   } catch (error) {
-//     logger.error('Document search failed', {
-//       requestId: req.requestId,
-//       error,
-//     });
-//     res.status(500).json({
-//       error: 'Internal Server Error',
-//       message: 'Failed to search documents',
-//     });
-//   }
-// });
+    res.status(200).json({
+      query,
+      results: results.map(r => ({
+        chunk_id: r.id,
+        score: r.score,
+        content: r.content.substring(0, 200) + '...', // Preview
+        full_content: r.content,
+        document_id: r.metadata.document_id,
+        filename: r.metadata.filename,
+      })),
+      count: results.length,
+    });
+  } catch (error) {
+    logger.error('Document search failed', {
+      requestId: req.requestId,
+      error,
+    });
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to search documents',
+    });
+  }
+});
 
 export default router;

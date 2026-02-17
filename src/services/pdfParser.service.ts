@@ -3,7 +3,7 @@ import logger from '../infra/logger';
 import { storageService } from './storage.service';
 import { DocumentModel } from '../models/docmuents.model';
 import { DocumentChunkModel } from '../models/documentChunk.model';
-// import { vectorStoreService } from './vectorStore.service';
+import { vectorStoreService } from './vectorStore.service';
 
 export interface ParsedDocument {
   text: string;
@@ -94,18 +94,18 @@ export class PDFParserService {
       const createdChunks = await DocumentChunkModel.findByDocumentId(documentId);
 
       // Index in vector database
-    //   await vectorStoreService.indexChunksBatch(
-    //     createdChunks.map(chunk => ({
-    //       chunkId: chunk.id,
-    //       documentId: documentId,
-    //       content: chunk.content,
-    //       metadata: {
-    //         chunk_index: chunk.chunk_index,
-    //         char_count: chunk.char_count,
-    //         filename: document.original_filename,
-    //       },
-    //     }))
-    //   );
+      await vectorStoreService.indexChunksBatch(
+        createdChunks.map(chunk => ({
+          chunkId: chunk.id,
+          documentId: documentId,
+          content: chunk.content,
+          metadata: {
+            chunk_index: chunk.chunk_index,
+            char_count: chunk.char_count,
+            filename: document.original_filename,
+          },
+        }))
+      );
 
       // Update document status
       await DocumentModel.markParsed(documentId, parsed.numPages);
