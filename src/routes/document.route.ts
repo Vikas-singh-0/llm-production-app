@@ -2,9 +2,9 @@ import { Request, Response, Router } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { DocumentModel } from '../models/docmuents.model';
-// import { DocumentChunkModel } from '../models/documentChunk.model';
+import { DocumentChunkModel } from '../models/documentChunk.model';
 import { storageService } from '../services/storage.service';
-// import { documentQueue } from '../services/documentQueue.service';
+import { documentQueue } from '../services/documentQueue.service';
 // import { vectorStoreService } from '../services/vectorStore.service';
 import logger from '../infra/logger';
 
@@ -78,13 +78,13 @@ router.post('/documents/upload', upload.single('file'), async (req: Request, res
     });
 
     // Queue for async parsing
-    // const jobId = await documentQueue.addDocument(document.id, req.context.orgId);
+    const jobId = await documentQueue.addDocument(document.id, req.context.orgId);
 
-    // logger.info('Document uploaded and queued', {
-    //   requestId: req.requestId,
-    //   documentId: document.id,
-    //   jobId,
-    // });
+    logger.info('Document uploaded and queued', {
+      requestId: req.requestId,
+      documentId: document.id,
+      jobId,
+    });
 
     res.status(201).json({
       id: document.id,
@@ -92,7 +92,7 @@ router.post('/documents/upload', upload.single('file'), async (req: Request, res
       size: document.file_size,
       status: document.status,
       created_at: document.created_at,
-    //   job_id: jobId,
+      job_id: jobId,
     });
   } catch (error) {
     logger.error('Document upload failed', {
@@ -256,59 +256,59 @@ router.delete('/documents/:id', async (req: Request, res: Response) => {
  * 
  * Get parsed text chunks from a document
  */
-// router.get('/documents/:id/chunks', async (req: Request, res: Response) => {
-//   try {
-//     if (!req.context) {
-//       res.status(401).json({ error: 'Unauthorized' });
-//       return;
-//     }
+router.get('/documents/:id/chunks', async (req: Request, res: Response) => {
+  try {
+    if (!req.context) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
-//     const { id } = req.params;
-//     const document = await DocumentModel.findById(id, req.context.orgId);
+    const { id } = req.params;
+    const document = await DocumentModel.findById(id, req.context.orgId);
 
-//     if (!document) {
-//       res.status(404).json({
-//         error: 'Not Found',
-//         message: 'Document not found',
-//       });
-//       return;
-//     }
+    if (!document) {
+      res.status(404).json({
+        error: 'Not Found',
+        message: 'Document not found',
+      });
+      return;
+    }
 
-//     // Check if document is parsed
-//     if (document.status !== 'parsed') {
-//       res.status(400).json({
-//         error: 'Bad Request',
-//         message: `Document is not parsed yet (status: ${document.status})`,
-//       });
-//       return;
-//     }
+    // Check if document is parsed
+    if (document.status !== 'parsed') {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: `Document is not parsed yet (status: ${document.status})`,
+      });
+      return;
+    }
 
-//     // Get chunks
-//     const chunks = await DocumentChunkModel.findByDocumentId(id);
+    // Get chunks
+    const chunks = await DocumentChunkModel.findByDocumentId(id);
 
-//     res.status(200).json({
-//       document_id: id,
-//       filename: document.original_filename,
-//       chunk_count: chunks.length,
-//       chunks: chunks.map(c => ({
-//         id: c.id,
-//         content: c.content,
-//         chunk_index: c.chunk_index,
-//         char_count: c.char_count,
-//         token_count: c.token_count,
-//       })),
-//     });
-//   } catch (error) {
-//     logger.error('Get document chunks failed', {
-//       requestId: req.requestId,
-//       error,
-//     });
-//     res.status(500).json({
-//       error: 'Internal Server Error',
-//       message: 'Failed to get document chunks',
-//     });
-//   }
-// });
+    res.status(200).json({
+      document_id: id,
+      filename: document.original_filename,
+      chunk_count: chunks.length,
+      chunks: chunks.map(c => ({
+        id: c.id,
+        content: c.content,
+        chunk_index: c.chunk_index,
+        char_count: c.char_count,
+        token_count: c.token_count,
+      })),
+    });
+  } catch (error) {
+    logger.error('Get document chunks failed', {
+      requestId: req.requestId,
+      error,
+    });
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to get document chunks',
+    });
+  }
+});
 
 /**
  * POST /documents/search

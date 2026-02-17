@@ -13,7 +13,8 @@ async function runMigrations() {
       // '002_chat_tables.sql',
       // '003_prompts.sql',
       // '004_summaries.sql',
-      '005_documents.sql',
+      // '005_documents.sql',
+      '006_documentChunks.sql'
     ];
 
     for (const migrationFile of migrations) {
